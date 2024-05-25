@@ -1,9 +1,18 @@
 import { Schema, model, connect } from 'mongoose'
-import { Student, LocalGuardian, UserName, Guardian } from './student.interface'
+import {
+  TStudent,
+  TLocalGuardian,
+  TUserName,
+  TGuardian,
+  StudentModel,
+} from './student.interface'
+import validator from 'validator'
+import bcrypt from 'bcrypt'
+import config from '../../config'
 
 // step-2 create a schema for students
 
-const userNameSchema = new Schema<UserName>({
+const userNameSchema = new Schema<TUserName>({
   firstName: {
     type: String,
     required: [true, 'firstName is required'],
@@ -12,22 +21,29 @@ const userNameSchema = new Schema<UserName>({
     //Custom Validator
     validate: {
       validator: function (value: string) {
-        const firstNameStr = value.charAt(0).toUpperCase() + value.slice(1);
-        return value === firstNameStr;
+        const firstNameStr = value.charAt(0).toUpperCase() + value.slice(1)
+        return value === firstNameStr
+      },
+      message: '{VALUE} is not a capitalize format',
     },
-    message: '{VALUE} is not a capitalize format'
-    }
   },
   middleName: {
     type: String,
   },
+  //built in validator methods
   lastName: {
     type: String,
-    required: [true, 'lastName is required']
+    required: [true, 'lastName is required'],
+    validate: {
+      validator: (value: string) => {
+        validator.isAlpha(value)
+      },
+      message: '{VALUE} is not a alpha format',
+    },
   },
 })
 
-const guardianSchema = new Schema<Guardian>({
+const guardianSchema = new Schema<TGuardian>({
   fatherName: {
     type: String,
     required: true,
@@ -54,7 +70,7 @@ const guardianSchema = new Schema<Guardian>({
   },
 })
 
-const localGuardianSchema = new Schema<LocalGuardian>({
+const localGuardianSchema = new Schema<TLocalGuardian>({
   name: {
     type: String,
     required: true,
@@ -73,8 +89,13 @@ const localGuardianSchema = new Schema<LocalGuardian>({
   },
 })
 
-const studentSchema = new Schema<Student>({
+const studentSchema = new Schema<TStudent, StudentModel>({
   id: { type: String, required: true, unique: true }, // এখানে unique use করা হয়েছে, যেন ডুব্লিকেট ডাটা না পাওয়া যায়।
+  password: {
+    type: String,
+    required: [true, 'Password is required'],
+    maxLength: [20, 'Password can not be more than 20 characters'],
+  },
   name: {
     type: userNameSchema,
     required: true,
@@ -83,15 +104,21 @@ const studentSchema = new Schema<Student>({
     type: String,
     gender: {
       values: ['male', 'female', 'other'],
-      message: "The gender field can only be one of the following: {VALUES}." 
+      message: 'The gender field can only be one of the following: {VALUES}.',
     },
     required: true,
-  }, //enu, type ব্যবহার করতে হবে যখন এমন ইউনিয়ন টাইপ থাকবে
+  }, //enum type ব্যবহার করতে হবে যখন এমন ইউনিয়ন টাইপ থাকবে
   dateOfBirth: {
     type: String,
   },
   email: {
-    type: String, required: true, unique: true
+    type: String,
+    required: true,
+    unique: true,
+    validate: {
+      validator: (value: string) => validator.isEmail(value),
+      message: '{VALUE} is not a valid email',
+    },
   },
   contactNumber: {
     type: String,
@@ -125,9 +152,51 @@ const studentSchema = new Schema<Student>({
     enum: ['active', 'blocked'],
     required: true,
   },
-});
+  isDeleted: {
+    type: Boolean,
+    default: false,
+  },
+})
 
 // step 3
 // Create model
 
-export const StudentModel = model<Student>('Student', studentSchema)
+//crating a custom instance method
+// studentSchema.methods.isUserExits = async function (id: string) {
+//   const existingUser = await Student.findOne({id});
+//   return existingUser;
+// }
+
+// creating a custom static method
+
+studentSchema.statics.isUserExists = async function (id: string) {
+  const existingUser = await Student.findOne({ id })
+  return existingUser
+}
+
+//pre-save middleware/hook : will work on create() save()
+
+studentSchema.pre('save', async function (next) {
+  //  console.log(this, 'pre hook: we will save the data');
+  // hashing password and save into db
+  const user = this
+  user.password = await bcrypt.hash(
+    user.password,
+    Number(config.bcrypt_salt_rounds),
+  )
+  next();
+});
+
+//post save middleware/hook 
+//Post এর মাধ্যমে পাসওয়ার্ড encrypting করে
+
+studentSchema.post('save', function (doc, next) {
+  // console.log(this, 'post hook: we will save the data')
+  doc.password = '';
+  next();
+
+});
+
+
+
+export const Student = model<TStudent, StudentModel>('Student', studentSchema)
