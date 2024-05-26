@@ -1,5 +1,5 @@
 
-import { Schema, model, connect, Model } from 'mongoose'
+import { Schema, model, connect, Model, Types } from 'mongoose'
 
 //step-1 create type or interface for students
 export type TGuardian = {
@@ -25,6 +25,7 @@ export type TLocalGuardian = {
 }
 export type TStudent = {
   id: string
+  user: Types.ObjectId;
   password: string
   name: TUserName
   gender: 'male' | 'female' | 'other'
@@ -38,7 +39,6 @@ export type TStudent = {
   guardian: TGuardian
   localGuardian: TLocalGuardian
   profileImg?: string | undefined
-  isActive: 'active' | 'blocked'
   isDeleted: boolean
 }
 

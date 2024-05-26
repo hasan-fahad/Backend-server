@@ -1,19 +1,27 @@
-import express, {  Application, Request, Response } from "express";
+import express, { Application, NextFunction, Request, Response, Router } from 'express'
 
 import cors from 'cors'
-import { StudentRoutes } from "./app/modules/student/student.route";
+import notFound from './app/modules/middleware/notFound'
+import globalErrorHandler from './app/modules/middleware/globalErrorHandler'
 
-const app: Application= express();
+
+const app: Application = express()
 
 //parser
-app.use(express.json());
-app.use(cors());
+app.use(express.json())
+app.use(cors())
 
 //applications routes
-app.use('/api/v1/students', StudentRoutes);
+app.use('/api/v1', Router)
+app.get('/', (req: Request, res: Response) => {
+  res.send('Hello World!')
+})
 
-app.get("/", (req: Request, res: Response) => {
-  res.send("Hello World!");
-});
+// global error handler call
 
-export default app; 
+app.use(globalErrorHandler);
+
+//Not Found call
+app.use(notFound);
+
+export default app

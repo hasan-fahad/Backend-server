@@ -7,7 +7,7 @@ import {
   StudentModel,
 } from './student.interface'
 import validator from 'validator'
-import bcrypt from 'bcrypt'
+
 import config from '../../config'
 
 // step-2 create a schema for students
@@ -91,11 +91,13 @@ const localGuardianSchema = new Schema<TLocalGuardian>({
 
 const studentSchema = new Schema<TStudent, StudentModel>({
   id: { type: String, required: true, unique: true }, // এখানে unique use করা হয়েছে, যেন ডুব্লিকেট ডাটা না পাওয়া যায়।
-  password: {
-    type: String,
-    required: [true, 'Password is required'],
-    maxLength: [20, 'Password can not be more than 20 characters'],
+  user: {
+    type: Schema.Types.ObjectId,
+    required: [true, 'User id is required'],
+    unique: true,
+    ref: 'User',
   },
+ 
   name: {
     type: userNameSchema,
     required: true,
@@ -147,54 +149,14 @@ const studentSchema = new Schema<TStudent, StudentModel>({
   profileImg: {
     type: String,
   },
-  isActive: {
-    type: String,
-    enum: ['active', 'blocked'],
-    required: true,
-  },
   isDeleted: {
     type: Boolean,
     default: false,
   },
-})
-
-// step 3
-// Create model
-
-//crating a custom instance method
-// studentSchema.methods.isUserExits = async function (id: string) {
-//   const existingUser = await Student.findOne({id});
-//   return existingUser;
-// }
-
-// creating a custom static method
-
-studentSchema.statics.isUserExists = async function (id: string) {
-  const existingUser = await Student.findOne({ id })
-  return existingUser
-}
-
-//pre-save middleware/hook : will work on create() save()
-
-studentSchema.pre('save', async function (next) {
-  //  console.log(this, 'pre hook: we will save the data');
-  // hashing password and save into db
-  const user = this
-  user.password = await bcrypt.hash(
-    user.password,
-    Number(config.bcrypt_salt_rounds),
-  )
-  next();
-});
-
-//post save middleware/hook 
-//Post এর মাধ্যমে পাসওয়ার্ড encrypting করে
-
-studentSchema.post('save', function (doc, next) {
-  // console.log(this, 'post hook: we will save the data')
-  doc.password = '';
-  next();
-
+}, {
+  toJSON: {
+    virtuals: true
+  }
 });
 
 // Querry middleware
@@ -208,4 +170,34 @@ studentSchema.pre('findOne', function (next) {
   this.find({isDeleted: {$ne: true}});
   next();
 });
+
+
+// creating a custom static method
+
+studentSchema.statics.isUserExists = async function (id: string) {
+  const existingUser = await Student.findOne({ id })
+  return existingUser
+};
+
+//virtual methods
+
+studentSchema.virtual('fullName').get(function () {
+  return `${this.name.firstName} ${this.name.middleName} ${this.name.lastName}`
+});
+
+studentSchema.virtual('fullName').set(function (fullName: string) {
+  const name = fullName.split(' ')
+  this.name.firstName = name[0]
+  this.name.middleName = name[1]
+  this.name.lastName = name[2]
+})
+
+// step 3
+// Create model
+
+//crating a custom instance method
+// studentSchema.methods.isUserExits = async function (id: string) {
+//   const existingUser = await Student.findOne({id});
+//   return existingUser;
+// }
 export const Student = model<TStudent, StudentModel>('Student', studentSchema)
